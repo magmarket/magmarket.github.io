@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magnificent Market Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; }
+
+  /* Header */
+  .header { background: #1a1a2e; color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+  .header h1 span { color: #4f8ef7; }
+  .header-right { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #aab; }
+  .refresh-btn { background: #4f8ef7; border: none; color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .refresh-btn:hover { background: #3a7de0; }
+  .refresh-btn:disabled { background: #555; cursor: not-allowed; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+  /* Tabs */
+  .tabs { background: #fff; border-bottom: 2px solid #e5e7eb; display: flex; padding: 0 20px; }
+  .tab-btn { padding: 12px 20px; background: none; border: none; cursor: pointer; font-size: 14px; font-weight: 600; color: #6b7280; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+  .tab-btn.active { color: #4f8ef7; border-bottom-color: #4f8ef7; }
+  .tab-btn:hover:not(.active) { color: #374151; }
+
+  /* Tab panels */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: flex; flex-direction: column; }
+
+  /* Dashboard layout */
+  .dashboard-layout { display: flex; gap: 0; height: calc(100vh - 98px); overflow: hidden; }
+  .main-panel { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .ai-sidebar { width: 320px; min-width: 320px; background: #fff; border-left: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Cards */
+  .card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  .card-title { font-size: 13px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+
+  /* Stock table */
+  .stock-table { width: 100%; border-collapse: collapse; }
+  .stock-table th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #f3f4f6; }
+  .stock-table th.right { text-align: right; }
+  .stock-table td { padding: 10px 10px; border-bottom: 1px solid #f9fafb; font-size: 13px; }
+  .stock-table tr:last-child td { border-bottom: none; }
+  .stock-table tr:hover td { background: #f9fafb; }
+  .ticker-cell { display: flex; flex-direction: column; }
+  .ticker-sym { font-weight: 700; font-size: 14px; }
+  .ticker-name { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+  .price-cell { font-weight: 700; font-size: 14px; text-align: right; }
+  .change-cell { text-align: right; font-weight: 600; font-size: 13px; }
+  .green { color: #16a34a; }
+  .red { color: #dc2626; }
+  .high-low { text-align: right; font-size: 12px; color: #6b7280; }
+  .loading-row td { color: #9ca3af; font-style: italic; text-align: center; padding: 20px; }
+  .spy-row td { background: #f0f6ff; }
+  .spy-row:hover td { background: #e8f0fe !important; }
+
+  /* Charts */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .chart-container { position: relative; height: 200px; }
+
+  /* Stats Sidebar */
+  .stats-sidebar { width: 280px; min-width: 280px; background: #fff; border-left: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow-y: auto; }
+  .stats-header { padding: 14px 16px; border-bottom: 1px solid #e5e7eb; background: #1a1a2e; color: #fff; }
+  .stats-header h3 { font-size: 14px; font-weight: 700; }
+  .stats-header p { font-size: 11px; color: #aab; margin-top: 2px; }
+  .stats-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .stat-block { background: #f9fafb; border-radius: 8px; padding: 11px 13px; }
+  .stat-block-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #9ca3af; margin-bottom: 6px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #f3f4f6; }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row-label { color: #6b7280; }
+  .stat-row-val { font-weight: 700; }
+  .mini-bar-wrap { margin-top: 6px; }
+  .mini-bar-row { display: flex; align-items: center; gap: 6px; font-size: 11px; margin-bottom: 4px; }
+  .mini-bar-sym { width: 36px; font-weight: 700; color: #374151; flex-shrink: 0; }
+  .mini-bar-track { flex: 1; background: #e5e7eb; border-radius: 3px; height: 7px; overflow: hidden; }
+  .mini-bar-fill { height: 100%; border-radius: 3px; }
+  .mini-bar-pct { width: 44px; text-align: right; font-weight: 600; flex-shrink: 0; }
+
+  /* S&P 500 Tab */
+  .sp500-layout { padding: 16px; display: grid; grid-template-columns: 380px 1fr; gap: 16px; height: calc(100vh - 98px); overflow-y: auto; }
+  .sp500-chart-container { position: relative; height: 340px; }
+  .sp500-table { width: 100%; border-collapse: collapse; }
+  .sp500-table th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e5e7eb; }
+  .sp500-table th.right { text-align: right; }
+  .sp500-table td { padding: 10px 10px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+  .sp500-table tr:last-child td { border-bottom: none; }
+  .sp500-table tr:hover td { background: #f9fafb; }
+  .weight-bar-cell { display: flex; align-items: center; gap: 8px; }
+  .weight-bar { height: 8px; border-radius: 4px; min-width: 4px; }
+  .mag7-badge { font-size: 10px; background: #eff6ff; color: #4f8ef7; border: 1px solid #bfdbfe; border-radius: 4px; padding: 1px 5px; font-weight: 700; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+
+  /* Stat pills */
+  .stat-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat-pill { background: #fff; border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  .stat-pill-label { font-size: 11px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+  .stat-pill-value { font-size: 18px; font-weight: 800; margin-top: 4px; }
+  .stat-pill-sub { font-size: 11px; margin-top: 2px; }
+
+  .error-msg { color: #dc2626; font-size: 12px; padding: 4px 0; }
+
+  /* Market News */
+  .news-layout { display: flex; flex-direction: column; height: calc(100vh - 112px); overflow: hidden; }
+  .news-feed { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+  .news-filters { display: flex; gap: 8px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+  .news-filter-btn { padding: 5px 14px; border-radius: 20px; border: 1px solid #e5e7eb; background: #f9fafb; font-size: 12px; font-weight: 600; cursor: pointer; color: #6b7280; transition: all 0.15s; }
+  .news-filter-btn:hover { border-color: #4f8ef7; color: #4f8ef7; }
+  .news-filter-btn.active { background: #4f8ef7; color: #fff; border-color: #4f8ef7; }
+  .news-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); display: flex; overflow: hidden; transition: box-shadow 0.15s; cursor: pointer; text-decoration: none; color: inherit; width: 100%; min-height: 90px; flex-shrink: 0; }
+  .news-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+  .news-card-accent { width: 4px; flex-shrink: 0; }
+  .news-card-img { width: 110px; min-width: 110px; object-fit: cover; background: #f3f4f6; }
+  .news-card-img-placeholder { width: 110px; min-width: 110px; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .news-card-body { padding: 12px 14px; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .news-card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .news-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; color: #fff; }
+  .news-card-headline { font-size: 14px; font-weight: 700; line-height: 1.4; color: #1a1a2e; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .news-card-summary { font-size: 12px; color: #6b7280; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .news-card-meta { display: flex; gap: 10px; align-items: center; font-size: 11px; color: #9ca3af; margin-top: 2px; }
+  .news-card-source { font-weight: 600; }
+  .news-empty { text-align: center; padding: 40px; color: #9ca3af; font-size: 13px; }
+
+  /* Earnings Calendar */
+  .earnings-layout { padding: 20px; max-width: 900px; margin: 0 auto; }
+  .earnings-section-title { font-size: 13px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin: 20px 0 10px; }
+  .earnings-section-title:first-child { margin-top: 0; }
+  .earnings-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); overflow: hidden; margin-bottom: 8px; display: flex; align-items: stretch; }
+  .earnings-accent { width: 5px; flex-shrink: 0; }
+  .earnings-body { padding: 14px 16px; flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .earnings-left { display: flex; align-items: center; gap: 14px; }
+  .earnings-logo { width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: #fff; flex-shrink: 0; }
+  .earnings-info { display: flex; flex-direction: column; gap: 2px; }
+  .earnings-sym { font-weight: 800; font-size: 15px; }
+  .earnings-name { font-size: 12px; color: #9ca3af; }
+  .earnings-right { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  .earnings-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .earnings-meta-label { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+  .earnings-meta-val { font-size: 13px; font-weight: 700; }
+  .earnings-date-badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+  .badge-upcoming { background: #eff6ff; color: #4f8ef7; }
+  .badge-today { background: #fef3c7; color: #d97706; }
+  .badge-past { background: #f3f4f6; color: #6b7280; }
+  .earnings-empty { text-align: center; padding: 30px; color: #9ca3af; font-size: 13px; background: #fff; border-radius: 10px; }
+
+  @media (max-width: 900px) {
+    .charts-row { grid-template-columns: 1fr; }
+    .stats-sidebar { display: none; }
+    .sp500-layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div style="display:flex;align-items:center;gap:12px">
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#4f8ef7"/>
+      <polyline points="4,26 10,18 15,22 21,12 26,16 32,6" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="26" cy="16" r="2.5" fill="#fbbf24"/>
+      <circle cx="21" cy="12" r="2" fill="#34d399"/>
+      <circle cx="10" cy="18" r="2" fill="#f472b6"/>
+    </svg>
+    <h1>Magnificent <span style="color:#fff">Market</span> <span>Dashboard</span></h1>
+  </div>
+  <div class="header-right">
+    <span class="live-dot"></span>
+    <span id="last-updated">Loading...</span>
+    <button class="refresh-btn" id="refresh-btn" onclick="fetchAllData()">↻ Refresh</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('dashboard')">📈 Dashboard</button>
+  <button class="tab-btn" onclick="switchTab('sp500')">🗂 S&P 500 Breakdown</button>
+  <button class="tab-btn" onclick="switchTab('earnings')">📅 Earnings Calendar</button>
+  <button class="tab-btn" onclick="switchTab('news')">📰 Market News</button>
+</div>
+
+<!-- Tab 1: Dashboard -->
+<div id="tab-dashboard" class="tab-panel active">
+  <div class="dashboard-layout">
+    <div class="main-panel">
+
+      <!-- Stat pills -->
+      <div class="stat-pills" id="stat-pills">
+        <div class="stat-pill"><div class="stat-pill-label">S&P 500 (SPY)</div><div class="stat-pill-value" id="pill-spy">--</div><div class="stat-pill-sub" id="pill-spy-chg">--</div></div>
+        <div class="stat-pill"><div class="stat-pill-label">Best Today</div><div class="stat-pill-value green" id="pill-best">--</div><div class="stat-pill-sub green" id="pill-best-chg">--</div></div>
+        <div class="stat-pill"><div class="stat-pill-label">Worst Today</div><div class="stat-pill-value red" id="pill-worst">--</div><div class="stat-pill-sub red" id="pill-worst-chg">--</div></div>
+        <div class="stat-pill"><div class="stat-pill-label">Avg Mag 7 Δ</div><div class="stat-pill-value" id="pill-avg">--</div><div class="stat-pill-sub" id="pill-avg-sub">vs. yesterday</div></div>
+      </div>
+
+      <!-- Stock Table -->
+      <div class="card">
+        <div class="card-title">Magnificent 7 + S&P 500</div>
+        <table class="stock-table">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th class="right">Price</th>
+              <th class="right">Change</th>
+              <th class="right">% Change</th>
+              <th class="right">High</th>
+              <th class="right">Low</th>
+              <th class="right">Prev Close</th>
+            </tr>
+          </thead>
+          <tbody id="stock-tbody">
+            <tr class="loading-row"><td colspan="7">Fetching live data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-row">
+        <div class="card">
+          <div class="card-title">Daily % Change</div>
+          <div class="chart-container"><canvas id="change-chart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Price Comparison</div>
+          <div class="chart-container"><canvas id="price-chart"></canvas></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Stats Sidebar -->
+    <div class="stats-sidebar">
+      <div class="stats-header">
+        <h3>📊 Stats Panel</h3>
+        <p>Calculated from live data</p>
+      </div>
+      <div class="stats-body" id="stats-body">
+        <div style="color:#9ca3af;font-size:13px;padding:8px 0">Loading stats...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab 2: S&P 500 Breakdown -->
+<div id="tab-sp500" class="tab-panel">
+  <div class="sp500-layout">
+    <div class="card">
+      <div class="card-title">Index Composition</div>
+      <div class="sp500-chart-container"><canvas id="sp500-donut"></canvas></div>
+      <p style="font-size:11px;color:#9ca3af;margin-top:10px;text-align:center;">Weights are approximate based on recent market data</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Top Holdings & Weights</div>
+      <table class="sp500-table" id="sp500-table">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Company</th>
+            <th class="right">Weight</th>
+            <th class="right">Live Price</th>
+            <th class="right">Day Chg</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="sp500-tbody">
+          <tr><td colspan="6" style="color:#9ca3af;text-align:center;padding:20px;">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Tab 4: Market News -->
+<div id="tab-news" class="tab-panel">
+  <div class="news-layout">
+    <div class="news-filters" id="news-filters">
+      <button class="news-filter-btn active" onclick="filterNews('ALL')">All</button>
+      <button class="news-filter-btn" onclick="filterNews('AAPL')">AAPL</button>
+      <button class="news-filter-btn" onclick="filterNews('MSFT')">MSFT</button>
+      <button class="news-filter-btn" onclick="filterNews('NVDA')">NVDA</button>
+      <button class="news-filter-btn" onclick="filterNews('GOOGL')">GOOGL</button>
+      <button class="news-filter-btn" onclick="filterNews('AMZN')">AMZN</button>
+      <button class="news-filter-btn" onclick="filterNews('META')">META</button>
+      <button class="news-filter-btn" onclick="filterNews('TSLA')">TSLA</button>
+    </div>
+    <div class="news-feed" id="news-feed">
+      <div style="color:#9ca3af;text-align:center;padding:40px;font-size:14px">Loading news...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab 3: Earnings Calendar -->
+<div id="tab-earnings" class="tab-panel">
+  <div class="earnings-layout" id="earnings-layout">
+    <div style="color:#9ca3af;text-align:center;padding:40px;font-size:14px">Loading earnings data...</div>
+  </div>
+</div>
+
+<script>
+const API_KEY = 'd8ebei1r01qm5f81326gd8ebei1r01qm5f813270';
+const BASE = 'https://finnhub.io/api/v1';
+
+const MAG7 = [
+  { symbol: 'AAPL', name: 'Apple' },
+  { symbol: 'MSFT', name: 'Microsoft' },
+  { symbol: 'NVDA', name: 'NVIDIA' },
+  { symbol: 'GOOGL', name: 'Alphabet' },
+  { symbol: 'AMZN', name: 'Amazon' },
+  { symbol: 'META', name: 'Meta' },
+  { symbol: 'TSLA', name: 'Tesla' },
+];
+
+const SP500_HOLDINGS = [
+  { symbol: 'AAPL', name: 'Apple Inc.', weight: 7.2, mag7: true },
+  { symbol: 'MSFT', name: 'Microsoft Corp.', weight: 6.4, mag7: true },
+  { symbol: 'NVDA', name: 'NVIDIA Corp.', weight: 5.8, mag7: true },
+  { symbol: 'AMZN', name: 'Amazon.com Inc.', weight: 3.9, mag7: true },
+  { symbol: 'META', name: 'Meta Platforms', weight: 3.2, mag7: true },
+  { symbol: 'GOOGL', name: 'Alphabet (A)', weight: 2.3, mag7: true },
+  { symbol: 'GOOG', name: 'Alphabet (C)', weight: 2.0, mag7: false },
+  { symbol: 'TSLA', name: 'Tesla Inc.', weight: 1.9, mag7: true },
+  { symbol: 'BRK.B', name: 'Berkshire Hathaway', weight: 1.7, mag7: false },
+  { symbol: 'AVGO', name: 'Broadcom Inc.', weight: 1.6, mag7: false },
+  { symbol: 'JPM', name: 'JPMorgan Chase', weight: 1.3, mag7: false },
+  { symbol: 'LLY', name: 'Eli Lilly', weight: 1.2, mag7: false },
+  { symbol: 'UNH', name: 'UnitedHealth Group', weight: 1.1, mag7: false },
+  { symbol: 'V', name: 'Visa Inc.', weight: 1.0, mag7: false },
+  { symbol: 'XOM', name: 'Exxon Mobil', weight: 0.9, mag7: false },
+];
+const OTHER_WEIGHT = +(100 - SP500_HOLDINGS.reduce((s, h) => s + h.weight, 0)).toFixed(1);
+
+const CHART_COLORS = ['#4f8ef7','#a78bfa','#34d399','#f59e0b','#f472b6','#60a5fa','#fb923c','#94a3b8'];
+const SP500_COLORS = ['#4f8ef7','#a78bfa','#34d399','#f59e0b','#f472b6','#60a5fa','#fb923c','#94a3b8','#6ee7b7','#fde68a','#c4b5fd','#f9a8d4','#bfdbfe','#a7f3d0','#fed7aa','#cbd5e1'];
+
+let stockData = {};
+let changeChart = null;
+let priceChart = null;
+let sp500Chart = null;
+let sp500LiveData = {};
+let autoRefreshTimer = null;
+
+// ─── Fetch ────────────────────────────────────────────────────────────────────
+async function fetchQuote(symbol) {
+  const r = await fetch(`${BASE}/quote?symbol=${symbol}&token=${API_KEY}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function fetchAllData() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  btn.textContent = '↻ Loading...';
+
+  const tickers = [...MAG7.map(s => s.symbol), 'SPY'];
+  const results = await Promise.allSettled(tickers.map(sym => fetchQuote(sym)));
+
+  results.forEach((res, i) => {
+    const sym = tickers[i];
+    if (res.status === 'fulfilled') {
+      stockData[sym] = res.value;
+    }
+  });
+
+  renderTable();
+  renderStatPills();
+  renderChangeChart();
+  renderPriceChart();
+  renderStatsPanel();
+
+  const now = new Date();
+  document.getElementById('last-updated').textContent = `Updated ${now.toLocaleTimeString()}`;
+  btn.disabled = false;
+  btn.textContent = '↻ Refresh';
+}
+
+// ─── Table ────────────────────────────────────────────────────────────────────
+function fmt(n, decimals=2) { return n != null ? n.toFixed(decimals) : '--'; }
+function fmtPrice(n) { return n != null ? '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'; }
+
+function renderTable() {
+  const tbody = document.getElementById('stock-tbody');
+  const rows = [...MAG7, { symbol: 'SPY', name: 'S&P 500 ETF' }];
+  tbody.innerHTML = rows.map(({ symbol, name }) => {
+    const q = stockData[symbol];
+    if (!q) return `<tr><td colspan="7" style="color:#dc2626;text-align:center">Error loading ${symbol}</td></tr>`;
+    const chg = q.d ?? 0;
+    const pct = q.dp ?? 0;
+    const cls = pct >= 0 ? 'green' : 'red';
+    const arrow = pct >= 0 ? '▲' : '▼';
+    const isSpy = symbol === 'SPY';
+    return `<tr class="${isSpy ? 'spy-row' : ''}">
+      <td><div class="ticker-cell"><span class="ticker-sym">${symbol}</span><span class="ticker-name">${name}</span></div></td>
+      <td class="price-cell">${fmtPrice(q.c)}</td>
+      <td class="change-cell ${cls}">${arrow} ${fmtPrice(Math.abs(chg))}</td>
+      <td class="change-cell ${cls}">${arrow} ${Math.abs(pct).toFixed(2)}%</td>
+      <td class="high-low">${fmtPrice(q.h)}</td>
+      <td class="high-low">${fmtPrice(q.l)}</td>
+      <td class="high-low">${fmtPrice(q.pc)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Stat Pills ───────────────────────────────────────────────────────────────
+function renderStatPills() {
+  const spy = stockData['SPY'];
+  if (spy) {
+    const cls = (spy.dp ?? 0) >= 0 ? 'green' : 'red';
+    document.getElementById('pill-spy').textContent = fmtPrice(spy.c);
+    document.getElementById('pill-spy').className = `stat-pill-value ${cls}`;
+    document.getElementById('pill-spy-chg').textContent = `${(spy.dp ?? 0) >= 0 ? '▲' : '▼'} ${Math.abs(spy.dp ?? 0).toFixed(2)}%`;
+    document.getElementById('pill-spy-chg').className = `stat-pill-sub ${cls}`;
+  }
+
+  const mag7Data = MAG7.map(s => ({ symbol: s.symbol, dp: stockData[s.symbol]?.dp ?? 0 }));
+  const sorted = [...mag7Data].sort((a, b) => b.dp - a.dp);
+  const best = sorted[0], worst = sorted[sorted.length - 1];
+
+  document.getElementById('pill-best').textContent = best.symbol;
+  document.getElementById('pill-best-chg').textContent = `▲ ${best.dp.toFixed(2)}%`;
+  document.getElementById('pill-worst').textContent = worst.symbol;
+  document.getElementById('pill-worst-chg').textContent = `▼ ${Math.abs(worst.dp).toFixed(2)}%`;
+
+  const avg = mag7Data.reduce((s, d) => s + d.dp, 0) / mag7Data.length;
+  document.getElementById('pill-avg').textContent = `${avg >= 0 ? '+' : ''}${avg.toFixed(2)}%`;
+  document.getElementById('pill-avg').className = `stat-pill-value ${avg >= 0 ? 'green' : 'red'}`;
+}
+
+// ─── Charts ───────────────────────────────────────────────────────────────────
+function renderChangeChart() {
+  const labels = [...MAG7.map(s => s.symbol), 'SPY'];
+  const values = labels.map(sym => stockData[sym]?.dp ?? 0);
+  const colors = values.map(v => v >= 0 ? '#22c55e' : '#ef4444');
+
+  if (changeChart) changeChart.destroy();
+  changeChart = new Chart(document.getElementById('change-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: colors, borderRadius: 5, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { grid: { color: '#f3f4f6' }, ticks: { callback: v => v + '%', font: { size: 11 } } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function renderPriceChart() {
+  const labels = [...MAG7.map(s => s.symbol), 'SPY'];
+  const values = labels.map(sym => stockData[sym]?.c ?? 0);
+
+  if (priceChart) priceChart.destroy();
+  priceChart = new Chart(document.getElementById('price-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: CHART_COLORS, borderRadius: 5, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { grid: { color: '#f3f4f6' }, ticks: { callback: v => '$' + v.toLocaleString(), font: { size: 11 } } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ─── S&P 500 Tab ──────────────────────────────────────────────────────────────
+async function loadSP500Tab() {
+  // Fetch live prices for SP500 holdings (skip if already fetched)
+  const toFetch = SP500_HOLDINGS.filter(h => !sp500LiveData[h.symbol]);
+  const results = await Promise.allSettled(toFetch.map(h => fetchQuote(h.symbol)));
+  results.forEach((res, i) => {
+    if (res.status === 'fulfilled') sp500LiveData[toFetch[i].symbol] = res.value;
+  });
+  renderSP500Chart();
+  renderSP500Table();
+}
+
+function renderSP500Chart() {
+  const labels = [...SP500_HOLDINGS.map(h => h.symbol), 'Other'];
+  const weights = [...SP500_HOLDINGS.map(h => h.weight), OTHER_WEIGHT];
+  const colors = [...SP500_COLORS.slice(0, SP500_HOLDINGS.length), '#e5e7eb'];
+
+  if (sp500Chart) sp500Chart.destroy();
+  sp500Chart = new Chart(document.getElementById('sp500-donut'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: weights, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8, boxWidth: 12 } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}%` } }
+      }
+    }
+  });
+}
+
+function renderSP500Table() {
+  const tbody = document.getElementById('sp500-tbody');
+  const maxW = Math.max(...SP500_HOLDINGS.map(h => h.weight));
+
+  const rows = SP500_HOLDINGS.map((h, i) => {
+    const q = sp500LiveData[h.symbol];
+    const pct = q?.dp ?? null;
+    const cls = pct == null ? '' : pct >= 0 ? 'green' : 'red';
+    const arrow = pct == null ? '' : pct >= 0 ? '▲' : '▼';
+    const barW = Math.round((h.weight / maxW) * 120);
+    const color = SP500_COLORS[i] || '#94a3b8';
+    return `<tr>
+      <td><strong>${h.symbol}</strong></td>
+      <td>${h.name} ${h.mag7 ? '<span class="mag7-badge">Mag 7</span>' : ''}</td>
+      <td class="right">
+        <div class="weight-bar-cell" style="justify-content:flex-end">
+          <span>${h.weight}%</span>
+          <div class="weight-bar" style="width:${barW}px;background:${color}"></div>
+        </div>
+      </td>
+      <td class="right">${q ? fmtPrice(q.c) : '<span style="color:#9ca3af">--</span>'}</td>
+      <td class="right ${cls}">${pct != null ? arrow + ' ' + Math.abs(pct).toFixed(2) + '%' : '--'}</td>
+      <td><span class="dot" style="background:${color}"></span></td>
+    </tr>`;
+  });
+
+  rows.push(`<tr style="background:#f9fafb;font-style:italic">
+    <td colspan="2" style="color:#6b7280">All other S&P 500 holdings (~485 stocks)</td>
+    <td class="right" style="color:#6b7280">${OTHER_WEIGHT}%</td>
+    <td colspan="3"></td>
+  </tr>`);
+
+  tbody.innerHTML = rows.join('');
+}
+
+// ─── AI Sidebar ───────────────────────────────────────────────────────────────
+function getStockContext() {
+  const lines = [...MAG7, { symbol: 'SPY', name: 'S&P 500 ETF' }].map(({ symbol, name }) => {
+    const q = stockData[symbol];
+    if (!q) return `${symbol}: data unavailable`;
+    return `${symbol} (${name}): $${q.c?.toFixed(2)} | Change: ${q.d >= 0 ? '+' : ''}${q.d?.toFixed(2)} (${q.dp >= 0 ? '+' : ''}${q.dp?.toFixed(2)}%) | High: $${q.h?.toFixed(2)} | Low: $${q.l?.toFixed(2)} | Prev Close: $${q.pc?.toFixed(2)}`;
+  });
+  return lines.join('\n');
+}
+
+// ─── Stats Panel ──────────────────────────────────────────────────────────────
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderStatsPanel() {
+  const container = document.getElementById('stats-body');
+  const mag7Data = MAG7.map(s => ({ ...s, q: stockData[s.symbol] })).filter(s => s.q);
+  const spy = stockData['SPY'];
+  if (!mag7Data.length) return;
+
+  // ── Leaders & Laggards ──
+  const sorted = [...mag7Data].sort((a, b) => b.q.dp - a.q.dp);
+  const leader = sorted[0], laggard = sorted[sorted.length - 1];
+
+  // ── Beating SPY ──
+  const spyPct = spy?.dp ?? 0;
+  const beatingSpy = mag7Data.filter(s => s.q.dp > spyPct);
+  const belowSpy  = mag7Data.filter(s => s.q.dp <= spyPct);
+
+  // ── Avg Mag 7 vs SPY ──
+  const avgMag7 = mag7Data.reduce((s, d) => s + d.q.dp, 0) / mag7Data.length;
+  const spread = avgMag7 - spyPct;
+
+  // ── Intraday ranges ──
+  const ranges = mag7Data.map(s => ({ sym: s.symbol, range: s.q.h - s.q.l, rangePct: ((s.q.h - s.q.l) / s.q.pc * 100) }));
+  const widest  = ranges.reduce((a, b) => b.rangePct > a.rangePct ? b : a);
+  const tightest = ranges.reduce((a, b) => b.rangePct < a.rangePct ? b : a);
+
+  // ── Above/below prev close ──
+  const abovePrev = mag7Data.filter(s => s.q.c > s.q.pc).length;
+
+  // ── Mini bar chart data (% change sorted) ──
+  const maxAbs = Math.max(...mag7Data.map(s => Math.abs(s.q.dp)));
+
+  container.innerHTML = `
+    <!-- Leaders & Laggards -->
+    <div class="stat-block">
+      <div class="stat-block-label">Leaders & Laggards</div>
+      <div class="stat-row">
+        <span class="stat-row-label">🏆 Leader</span>
+        <span class="stat-row-val green">${leader.symbol} +${leader.q.dp.toFixed(2)}%</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-row-label">📉 Laggard</span>
+        <span class="stat-row-val red">${laggard.symbol} ${laggard.q.dp.toFixed(2)}%</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-row-label">Spread (best–worst)</span>
+        <span class="stat-row-val">${(leader.q.dp - laggard.q.dp).toFixed(2)}pp</span>
+      </div>
+    </div>
+
+    <!-- vs SPY -->
+    <div class="stat-block">
+      <div class="stat-block-label">vs. S&P 500 (SPY ${spyPct >= 0 ? '+' : ''}${spyPct.toFixed(2)}%)</div>
+      <div class="stat-row">
+        <span class="stat-row-label">Beating SPY</span>
+        <span class="stat-row-val green">${beatingSpy.length} / ${mag7Data.length}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-row-label">Trailing SPY</span>
+        <span class="stat-row-val red">${belowSpy.length} / ${mag7Data.length}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-row-label">Avg Mag 7 vs SPY</span>
+        <span class="stat-row-val ${spread >= 0 ? 'green' : 'red'}">${spread >= 0 ? '+' : ''}${spread.toFixed(2)}pp</span>
+      </div>
+    </div>
+
+    <!-- Session momentum -->
+    <div class="stat-block">
+      <div class="stat-block-label">Session Momentum</div>
+      <div class="stat-row">
+        <span class="stat-row-label">Above prev close</span>
+        <span class="stat-row-val">${abovePrev} / ${mag7Data.length}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-row-label">Avg Mag 7 Δ</span>
+        <span class="stat-row-val ${avgMag7 >= 0 ? 'green' : 'red'}">${avgMag7 >= 0 ? '+' : ''}${avgMag7.toFixed(2)}%</span>
+      </div>
+    </div>
+
+    <!-- Intraday range -->
+    <div class="stat-block">
+      <div class="stat-block-label">Intraday Volatility</div>
+      <div class="stat-row">
+        <span class="stat-row-label">Widest range</span>
+        <span class="stat-row-val">${widest.sym} ${widest.rangePct.toFixed(2)}%</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-row-label">Tightest range</span>
+        <span class="stat-row-val">${tightest.sym} ${tightest.rangePct.toFixed(2)}%</span>
+      </div>
+    </div>
+
+    <!-- Mini bar chart -->
+    <div class="stat-block">
+      <div class="stat-block-label">% Change Bar View</div>
+      <div class="mini-bar-wrap">
+        ${sorted.map(s => {
+          const pct = s.q.dp;
+          const color = pct >= 0 ? '#22c55e' : '#ef4444';
+          const w = maxAbs > 0 ? Math.round(Math.abs(pct) / maxAbs * 100) : 0;
+          return `<div class="mini-bar-row">
+            <span class="mini-bar-sym">${s.symbol}</span>
+            <div class="mini-bar-track"><div class="mini-bar-fill" style="width:${w}%;background:${color}"></div></div>
+            <span class="mini-bar-pct ${pct >= 0 ? 'green' : 'red'}">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+// ─── Auto-refresh stats on data load ─────────────────────────────────────────
+
+// ─── Earnings Calendar ────────────────────────────────────────────────────────
+const MAG7_META = {
+  AAPL:  { name: 'Apple',     color: '#6b7280' },
+  MSFT:  { name: 'Microsoft', color: '#4f8ef7' },
+  NVDA:  { name: 'NVIDIA',    color: '#34d399' },
+  GOOGL: { name: 'Alphabet',  color: '#f59e0b' },
+  AMZN:  { name: 'Amazon',    color: '#fb923c' },
+  META:  { name: 'Meta',      color: '#a78bfa' },
+  TSLA:  { name: 'Tesla',     color: '#ef4444' },
+};
+
+async function loadEarningsTab() {
+  const container = document.getElementById('earnings-layout');
+  container.innerHTML = `<div style="color:#9ca3af;text-align:center;padding:40px;font-size:14px">Fetching earnings data...</div>`;
+
+  const today = new Date();
+  const from = new Date(today); from.setDate(from.getDate() - 60);
+  const to   = new Date(today); to.setDate(to.getDate() + 120);
+  const fmt = d => d.toISOString().split('T')[0];
+  const syms = Object.keys(MAG7_META);
+
+  try {
+    // Fetch calendar (estimates + dates) AND actual reported earnings in parallel
+    const [calResults, actResults] = await Promise.all([
+      Promise.allSettled(syms.map(sym =>
+        fetch(`${BASE}/calendar/earnings?symbol=${sym}&from=${fmt(from)}&to=${fmt(to)}&token=${API_KEY}`)
+          .then(r => r.json()).then(d => (d.earningsCalendar || []).map(e => ({ ...e, symbol: sym })))
+      )),
+      Promise.allSettled(syms.map(sym =>
+        fetch(`${BASE}/stock/earnings?symbol=${sym}&token=${API_KEY}`)
+          .then(r => r.json()).then(d => ({ sym, data: Array.isArray(d) ? d : [] }))
+      ))
+    ]);
+
+    // Build actuals lookup: key = "SYM|YYYY-MM-DD" → { epsActual, revenueActual, surprisePct }
+    const actualsMap = {};
+    actResults.forEach(r => {
+      if (r.status !== 'fulfilled') return;
+      const { sym, data } = r.value;
+      data.forEach(e => {
+        if (!e.period) return;
+        const key = `${sym}|${e.period}`;
+        actualsMap[key] = {
+          epsActual: e.actual ?? null,
+          surprisePct: e.surprisePercent ?? null,
+        };
+      });
+    });
+
+    // Collect calendar entries
+    const allEntries = [];
+    calResults.forEach(r => { if (r.status === 'fulfilled') allEntries.push(...r.value); });
+
+    if (!allEntries.length) {
+      container.innerHTML = `<div class="earnings-empty">No earnings data found for the Mag 7 in this window.</div>`;
+      return;
+    }
+
+    // Deduplicate, merge actuals, sort by date
+    const seen = new Set();
+    const entries = allEntries
+      .filter(e => { const k = e.symbol + e.date; if (seen.has(k)) return false; seen.add(k); return true; })
+      .map(e => {
+        // Try to match actuals by exact date, then by closest period within ±45 days
+        const exact = actualsMap[`${e.symbol}|${e.date}`];
+        if (exact) return { ...e, ...exact };
+        // Fuzzy match: find the reported period nearest to this earnings date
+        const eTime = new Date(e.date).getTime();
+        let best = null, bestDiff = Infinity;
+        Object.entries(actualsMap).forEach(([k, v]) => {
+          if (!k.startsWith(e.symbol + '|')) return;
+          const diff = Math.abs(new Date(k.split('|')[1]).getTime() - eTime);
+          if (diff < bestDiff && diff < 45 * 86400000) { bestDiff = diff; best = v; }
+        });
+        return best ? { ...e, ...best } : e;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const todayStr = fmt(today);
+    const past     = entries.filter(e => e.date < todayStr);
+    const todayEnt = entries.filter(e => e.date === todayStr);
+    const upcoming = entries.filter(e => e.date > todayStr);
+
+    function renderCard(e, badgeClass, badgeLabel) {
+      const m = MAG7_META[e.symbol] || { name: e.symbol, color: '#94a3b8' };
+      const initials = e.symbol.slice(0, 2);
+      const dateObj = new Date(e.date + 'T12:00:00');
+      const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      const epsEst = e.epsEstimate != null ? `$${Number(e.epsEstimate).toFixed(2)}` : '—';
+      const epsAct = e.epsActual   != null ? `$${Number(e.epsActual).toFixed(2)}`   : '—';
+      const revEst = e.revenueEstimate != null ? `$${(e.revenueEstimate/1e9).toFixed(2)}B` : '—';
+      const revAct = e.revenueActual   != null ? `$${(e.revenueActual/1e9).toFixed(2)}B`   : '—';
+      const beat = e.epsActual != null && e.epsEstimate != null
+        ? e.epsActual >= e.epsEstimate
+          ? '<span style="color:#16a34a;font-size:11px;font-weight:700">✓ Beat</span>'
+          : '<span style="color:#dc2626;font-size:11px;font-weight:700">✗ Miss</span>'
+        : '';
+      const surprise = e.surprisePct != null
+        ? `<span style="font-size:11px;font-weight:700;color:${e.surprisePct >= 0 ? '#16a34a' : '#dc2626'}">(${e.surprisePct >= 0 ? '+' : ''}${Number(e.surprisePct).toFixed(1)}%)</span>`
+        : '';
+      const hour = e.hour === 'bmo' ? '🌅 Pre-market' : e.hour === 'amc' ? '🌆 After-hours' : '';
+      return `<div class="earnings-card">
+        <div class="earnings-accent" style="background:${m.color}"></div>
+        <div class="earnings-body">
+          <div class="earnings-left">
+            <div class="earnings-logo" style="background:${m.color}">${initials}</div>
+            <div class="earnings-info">
+              <span class="earnings-sym">${e.symbol}</span>
+              <span class="earnings-name">${m.name} ${hour ? '· ' + hour : ''}</span>
+            </div>
+          </div>
+          <div class="earnings-right">
+            <div class="earnings-meta">
+              <span class="earnings-meta-label">EPS Est / Act</span>
+              <span class="earnings-meta-val">${epsEst} / ${epsAct} ${beat} ${surprise}</span>
+            </div>
+            <div class="earnings-meta">
+              <span class="earnings-meta-label">Rev Est / Act</span>
+              <span class="earnings-meta-val">${revEst} / ${revAct}</span>
+            </div>
+            <div>
+              <div class="earnings-date-badge ${badgeClass}">${badgeLabel ? badgeLabel + ' · ' : ''}${dateStr}</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    let html = '';
+    if (todayEnt.length) {
+      html += `<div class="earnings-section-title">📅 Today</div>`;
+      html += todayEnt.map(e => renderCard(e, 'badge-today', 'Today')).join('');
+    }
+    if (upcoming.length) {
+      html += `<div class="earnings-section-title">⏳ Upcoming (next 120 days)</div>`;
+      html += upcoming.map(e => renderCard(e, 'badge-upcoming', '')).join('');
+    }
+    if (past.length) {
+      html += `<div class="earnings-section-title">📁 Recent (past 60 days)</div>`;
+      html += [...past].reverse().map(e => renderCard(e, 'badge-past', '')).join('');
+    }
+
+    container.innerHTML = `<div class="earnings-layout">${html}</div>`;
+  } catch(err) {
+    container.innerHTML = `<div class="earnings-empty" style="color:#dc2626">Error loading earnings: ${escHtml(err.message)}</div>`;
+  }
+}
+
+// ─── Market News ─────────────────────────────────────────────────────────────
+let allNewsArticles = [];
+let activeNewsFilter = 'ALL';
+
+async function loadNewsTab() {
+  const feed = document.getElementById('news-feed');
+  feed.innerHTML = `<div style="color:#9ca3af;text-align:center;padding:40px;font-size:14px">Fetching news...</div>`;
+
+  const today = new Date();
+  const from = new Date(today); from.setDate(from.getDate() - 7);
+  const fmt = d => d.toISOString().split('T')[0];
+  const syms = Object.keys(MAG7_META);
+
+  try {
+    const results = await Promise.allSettled(
+      syms.map(sym =>
+        fetch(`${BASE}/company-news?symbol=${sym}&from=${fmt(from)}&to=${fmt(today)}&token=${API_KEY}`)
+          .then(r => r.json())
+          .then(articles => (Array.isArray(articles) ? articles : []).slice(0, 15).map(a => ({ ...a, _sym: sym })))
+      )
+    );
+
+    const seen = new Set();
+    allNewsArticles = [];
+    results.forEach(r => {
+      if (r.status !== 'fulfilled') return;
+      r.value.forEach(a => {
+        if (!a.headline || seen.has(a.id || a.headline)) return;
+        seen.add(a.id || a.headline);
+        allNewsArticles.push(a);
+      });
+    });
+
+    // Sort newest first
+    allNewsArticles.sort((a, b) => b.datetime - a.datetime);
+    renderNewsFeed();
+  } catch(e) {
+    feed.innerHTML = `<div class="news-empty" style="color:#dc2626">Error loading news: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function filterNews(sym) {
+  activeNewsFilter = sym;
+  document.querySelectorAll('.news-filter-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent === sym || (sym === 'ALL' && b.textContent === 'All'));
+  });
+  renderNewsFeed();
+}
+
+function renderNewsFeed() {
+  const feed = document.getElementById('news-feed');
+  const articles = activeNewsFilter === 'ALL'
+    ? allNewsArticles
+    : allNewsArticles.filter(a => a._sym === activeNewsFilter);
+
+  if (!articles.length) {
+    feed.innerHTML = `<div class="news-empty">No recent news found${activeNewsFilter !== 'ALL' ? ' for ' + activeNewsFilter : ''}.</div>`;
+    return;
+  }
+
+  feed.innerHTML = articles.map(a => {
+    const m = MAG7_META[a._sym] || { color: '#94a3b8' };
+    const date = new Date(a.datetime * 1000);
+    const timeStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' · ' +
+                    date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const imgEl = a.image
+      ? `<img class="news-card-img" src="${escHtml(a.image)}" alt="" onerror="this.parentNode.replaceChild(Object.assign(document.createElement('div'),{className:'news-card-img-placeholder',textContent:'📰'}),this)">`
+      : `<div class="news-card-img-placeholder">📰</div>`;
+    return `<a class="news-card" href="${escHtml(a.url)}" target="_blank" rel="noopener">
+      <div class="news-card-accent" style="background:${m.color}"></div>
+      ${imgEl}
+      <div class="news-card-body">
+        <div class="news-card-tags">
+          <span class="news-tag" style="background:${m.color}">${a._sym}</span>
+        </div>
+        <div class="news-card-headline">${escHtml(a.headline)}</div>
+        ${a.summary ? `<div class="news-card-summary">${escHtml(a.summary)}</div>` : ''}
+        <div class="news-card-meta">
+          <span class="news-card-source">${escHtml(a.source || '')}</span>
+          <span>${timeStr}</span>
+        </div>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+// ─── Tab Switching ────────────────────────────────────────────────────────────
+let sp500Loaded = false;
+let earningsLoaded = false;
+let newsLoaded = false;
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+
+  if (name === 'sp500'    && !sp500Loaded)    { sp500Loaded    = true; loadSP500Tab(); }
+  if (name === 'earnings' && !earningsLoaded) { earningsLoaded = true; loadEarningsTab(); }
+  if (name === 'news'     && !newsLoaded)     { newsLoaded     = true; loadNewsTab(); }
+}
+
+// ─── Auto-refresh every 60s ───────────────────────────────────────────────────
+function startAutoRefresh() {
+  clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(fetchAllData, 60000);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+fetchAllData().then(startAutoRefresh);
+</script>
+</body>
+</html>
