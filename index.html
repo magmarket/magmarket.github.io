@@ -103,6 +103,10 @@
   .stat-pill-value { font-size: 18px; font-weight: 800; margin-top: 4px; }
   .stat-pill-sub { font-size: 11px; margin-top: 2px; }
 
+  .sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  .sortable:hover { color: #4f8ef7; }
+  .sortable.sort-asc::after  { content: ' ▲'; color: #4f8ef7; font-size: 10px; }
+  .sortable.sort-desc::after { content: ' ▼'; color: #4f8ef7; font-size: 10px; }
   .error-msg { color: #dc2626; font-size: 12px; padding: 4px 0; }
 
   /* Market News */
@@ -199,17 +203,20 @@
 
       <!-- Stock Table -->
       <div class="card">
-        <div class="card-title">Magnificent 7 + S&P 500</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div class="card-title" style="margin-bottom:0">Magnificent 7 + S&P 500</div>
+          <button onclick="exportCSV()" style="background:#f0f6ff;border:1px solid #bfdbfe;color:#4f8ef7;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;">⬇ Export CSV</button>
+        </div>
         <table class="stock-table">
           <thead>
             <tr>
-              <th>Ticker</th>
-              <th class="right">Price</th>
-              <th class="right">Change</th>
-              <th class="right">% Change</th>
-              <th class="right">High</th>
-              <th class="right">Low</th>
-              <th class="right">Prev Close</th>
+              <th onclick="sortDashboard('sym')"  class="sortable" id="dth-sym">Ticker</th>
+              <th onclick="sortDashboard('c')"   class="sortable right" id="dth-c">Price</th>
+              <th onclick="sortDashboard('d')"   class="sortable right" id="dth-d">Change</th>
+              <th onclick="sortDashboard('dp')"  class="sortable right" id="dth-dp">% Change</th>
+              <th onclick="sortDashboard('h')"   class="sortable right" id="dth-h">High</th>
+              <th onclick="sortDashboard('l')"   class="sortable right" id="dth-l">Low</th>
+              <th onclick="sortDashboard('pc')"  class="sortable right" id="dth-pc">Prev Close</th>
             </tr>
           </thead>
           <tbody id="stock-tbody">
@@ -263,12 +270,12 @@
         <table class="sp500-table" id="sp500-table">
           <thead>
             <tr>
-              <th style="position:sticky;top:0;background:#fff;">#</th>
-              <th style="position:sticky;top:0;background:#fff;">Ticker</th>
+              <th onclick="sortSP500('rank')"   class="sortable" style="position:sticky;top:0;background:#fff;" id="sth-rank">#</th>
+              <th onclick="sortSP500('symbol')" class="sortable" style="position:sticky;top:0;background:#fff;" id="sth-symbol">Ticker</th>
               <th style="position:sticky;top:0;background:#fff;">Company</th>
-              <th class="right" style="position:sticky;top:0;background:#fff;">Weight</th>
-              <th class="right" style="position:sticky;top:0;background:#fff;">Live Price</th>
-              <th class="right" style="position:sticky;top:0;background:#fff;">Day Chg</th>
+              <th onclick="sortSP500('weight')" class="sortable right" style="position:sticky;top:0;background:#fff;" id="sth-weight">Weight</th>
+              <th onclick="sortSP500('price')"  class="sortable right" style="position:sticky;top:0;background:#fff;" id="sth-price">Live Price</th>
+              <th onclick="sortSP500('chg')"    class="sortable right" style="position:sticky;top:0;background:#fff;" id="sth-chg">Day Chg</th>
               <th style="position:sticky;top:0;background:#fff;"></th>
             </tr>
           </thead>
@@ -426,9 +433,33 @@ async function fetchAllData() {
 function fmt(n, decimals=2) { return n != null ? n.toFixed(decimals) : '--'; }
 function fmtPrice(n) { return n != null ? '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'; }
 
+let dashSort = { col: null, dir: 1 };
+
+function sortDashboard(col) {
+  dashSort.dir = dashSort.col === col ? -dashSort.dir : -1;
+  dashSort.col = col;
+  document.querySelectorAll('[id^="dth-"]').forEach(th => th.classList.remove('sort-asc','sort-desc'));
+  const th = document.getElementById('dth-' + col);
+  if (th) th.classList.add(dashSort.dir === -1 ? 'sort-desc' : 'sort-asc');
+  renderTable();
+}
+
 function renderTable() {
   const tbody = document.getElementById('stock-tbody');
-  const rows = [...MAG7, { symbol: 'SPY', name: 'S&P 500 ETF' }];
+  let rows = [...MAG7, { symbol: 'SPY', name: 'S&P 500 ETF' }];
+
+  if (dashSort.col) {
+    rows.sort((a, b) => {
+      const qa = stockData[a.symbol], qb = stockData[b.symbol];
+      let va, vb;
+      if (dashSort.col === 'sym') { va = a.symbol; vb = b.symbol; }
+      else { va = qa?.[dashSort.col] ?? -Infinity; vb = qb?.[dashSort.col] ?? -Infinity; }
+      return typeof va === 'string'
+        ? va.localeCompare(vb) * dashSort.dir
+        : (va - vb) * dashSort.dir;
+    });
+  }
+
   tbody.innerHTML = rows.map(({ symbol, name }) => {
     const q = stockData[symbol];
     if (!q) return `<tr><td colspan="7" style="color:#dc2626;text-align:center">Error loading ${symbol}</td></tr>`;
@@ -559,13 +590,38 @@ function renderSP500Chart() {
   });
 }
 
+let sp500Sort = { col: 'rank', dir: 1 };
+
+function sortSP500(col) {
+  sp500Sort.dir = sp500Sort.col === col ? -sp500Sort.dir : -1;
+  sp500Sort.col = col;
+  document.querySelectorAll('[id^="sth-"]').forEach(th => th.classList.remove('sort-asc','sort-desc'));
+  const th = document.getElementById('sth-' + col);
+  if (th) th.classList.add(sp500Sort.dir === -1 ? 'sort-desc' : 'sort-asc');
+  filterSP500Table();
+}
+
 function renderSP500Table(filter = '') {
   const tbody = document.getElementById('sp500-tbody');
   const maxW = SP500_HOLDINGS[0].weight;
   const q = filter.toLowerCase();
-  const filtered = SP500_HOLDINGS.filter(h =>
+  let filtered = SP500_HOLDINGS.filter(h =>
     !q || h.symbol.toLowerCase().includes(q) || h.name.toLowerCase().includes(q)
   );
+
+  // Apply sort
+  filtered = [...filtered].sort((a, b) => {
+    const qa = sp500LiveData[a.symbol], qb = sp500LiveData[b.symbol];
+    const rankA = SP500_HOLDINGS.indexOf(a), rankB = SP500_HOLDINGS.indexOf(b);
+    switch (sp500Sort.col) {
+      case 'rank':   return (rankA - rankB) * sp500Sort.dir;
+      case 'symbol': return a.symbol.localeCompare(b.symbol) * sp500Sort.dir;
+      case 'weight': return (a.weight - b.weight) * sp500Sort.dir;
+      case 'price':  return ((qa?.c ?? -Infinity) - (qb?.c ?? -Infinity)) * sp500Sort.dir;
+      case 'chg':    return ((qa?.dp ?? -Infinity) - (qb?.dp ?? -Infinity)) * sp500Sort.dir;
+      default: return 0;
+    }
+  });
 
   if (!filtered.length) {
     tbody.innerHTML = `<tr><td colspan="7" style="color:#9ca3af;text-align:center;padding:20px;">No results for "${filter}"</td></tr>`;
@@ -724,6 +780,39 @@ function renderStatsPanel() {
         }).join('')}
       </div>
     </div>`;
+}
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+function exportCSV() {
+  const rows = [...MAG7, { symbol: 'SPY', name: 'S&P 500 ETF' }];
+  const headers = ['Symbol','Name','Price','Change','Change %','High','Low','Prev Close','As Of'];
+  const now = new Date().toLocaleString();
+  const lines = [
+    headers.join(','),
+    ...rows.map(({ symbol, name }) => {
+      const q = stockData[symbol];
+      if (!q) return [symbol, name, '', '', '', '', '', '', now].join(',');
+      return [
+        symbol,
+        `"${name}"`,
+        q.c?.toFixed(2) ?? '',
+        q.d?.toFixed(2) ?? '',
+        q.dp?.toFixed(2) ?? '',
+        q.h?.toFixed(2) ?? '',
+        q.l?.toFixed(2) ?? '',
+        q.pc?.toFixed(2) ?? '',
+        `"${now}"`
+      ].join(',');
+    })
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), {
+    href: url,
+    download: `mag7-${new Date().toISOString().split('T')[0]}.csv`
+  });
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ─── Auto-refresh stats on data load ─────────────────────────────────────────
