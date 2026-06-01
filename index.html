@@ -83,7 +83,7 @@
   .mini-bar-pct { width: 44px; text-align: right; font-weight: 600; flex-shrink: 0; }
 
   /* S&P 500 Tab */
-  .sp500-layout { padding: 16px; display: grid; grid-template-columns: 380px 1fr; gap: 16px; height: calc(100vh - 98px); overflow-y: auto; }
+  .sp500-layout { padding: 16px; display: grid; grid-template-columns: 360px 1fr; gap: 16px; height: calc(100vh - 112px); overflow: hidden; }
   .sp500-chart-container { position: relative; height: 340px; }
   .sp500-table { width: 100%; border-collapse: collapse; }
   .sp500-table th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e5e7eb; }
@@ -253,23 +253,31 @@
       <div class="sp500-chart-container"><canvas id="sp500-donut"></canvas></div>
       <p style="font-size:11px;color:#9ca3af;margin-top:10px;text-align:center;">Weights are approximate based on recent market data</p>
     </div>
-    <div class="card">
-      <div class="card-title">Top Holdings & Weights</div>
-      <table class="sp500-table" id="sp500-table">
-        <thead>
-          <tr>
-            <th>Ticker</th>
-            <th>Company</th>
-            <th class="right">Weight</th>
-            <th class="right">Live Price</th>
-            <th class="right">Day Chg</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="sp500-tbody">
-          <tr><td colspan="6" style="color:#9ca3af;text-align:center;padding:20px;">Loading...</td></tr>
-        </tbody>
-      </table>
+    <div class="card" style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px;flex-shrink:0;">
+        <div class="card-title" style="margin-bottom:0">Top 50 Holdings & Weights</div>
+        <input id="sp500-search" type="text" placeholder="Search ticker or name..." oninput="filterSP500Table()"
+          style="border:1px solid #e5e7eb;border-radius:7px;padding:5px 10px;font-size:12px;outline:none;width:200px;">
+      </div>
+      <div style="overflow-y:auto;flex:1;">
+        <table class="sp500-table" id="sp500-table">
+          <thead>
+            <tr>
+              <th style="position:sticky;top:0;background:#fff;">#</th>
+              <th style="position:sticky;top:0;background:#fff;">Ticker</th>
+              <th style="position:sticky;top:0;background:#fff;">Company</th>
+              <th class="right" style="position:sticky;top:0;background:#fff;">Weight</th>
+              <th class="right" style="position:sticky;top:0;background:#fff;">Live Price</th>
+              <th class="right" style="position:sticky;top:0;background:#fff;">Day Chg</th>
+              <th style="position:sticky;top:0;background:#fff;"></th>
+            </tr>
+          </thead>
+          <tbody id="sp500-tbody">
+            <tr><td colspan="7" style="color:#9ca3af;text-align:center;padding:20px;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:8px;flex-shrink:0;">Weights are approximate · Top 50 shown · Remaining ~450 stocks = ${OTHER_WEIGHT}%</div>
     </div>
   </div>
 </div>
@@ -315,22 +323,59 @@ const MAG7 = [
 ];
 
 const SP500_HOLDINGS = [
-  { symbol: 'AAPL', name: 'Apple Inc.', weight: 7.2, mag7: true },
-  { symbol: 'MSFT', name: 'Microsoft Corp.', weight: 6.4, mag7: true },
-  { symbol: 'NVDA', name: 'NVIDIA Corp.', weight: 5.8, mag7: true },
-  { symbol: 'AMZN', name: 'Amazon.com Inc.', weight: 3.9, mag7: true },
-  { symbol: 'META', name: 'Meta Platforms', weight: 3.2, mag7: true },
-  { symbol: 'GOOGL', name: 'Alphabet (A)', weight: 2.3, mag7: true },
-  { symbol: 'GOOG', name: 'Alphabet (C)', weight: 2.0, mag7: false },
-  { symbol: 'TSLA', name: 'Tesla Inc.', weight: 1.9, mag7: true },
-  { symbol: 'BRK.B', name: 'Berkshire Hathaway', weight: 1.7, mag7: false },
-  { symbol: 'AVGO', name: 'Broadcom Inc.', weight: 1.6, mag7: false },
-  { symbol: 'JPM', name: 'JPMorgan Chase', weight: 1.3, mag7: false },
-  { symbol: 'LLY', name: 'Eli Lilly', weight: 1.2, mag7: false },
-  { symbol: 'UNH', name: 'UnitedHealth Group', weight: 1.1, mag7: false },
-  { symbol: 'V', name: 'Visa Inc.', weight: 1.0, mag7: false },
-  { symbol: 'XOM', name: 'Exxon Mobil', weight: 0.9, mag7: false },
+  { symbol: 'AAPL',  name: 'Apple Inc.',            weight: 7.20, mag7: true  },
+  { symbol: 'MSFT',  name: 'Microsoft Corp.',        weight: 6.40, mag7: true  },
+  { symbol: 'NVDA',  name: 'NVIDIA Corp.',           weight: 5.80, mag7: true  },
+  { symbol: 'AMZN',  name: 'Amazon.com Inc.',        weight: 3.90, mag7: true  },
+  { symbol: 'META',  name: 'Meta Platforms',         weight: 3.20, mag7: true  },
+  { symbol: 'GOOGL', name: 'Alphabet (A)',            weight: 2.30, mag7: true  },
+  { symbol: 'GOOG',  name: 'Alphabet (C)',            weight: 2.00, mag7: false },
+  { symbol: 'TSLA',  name: 'Tesla Inc.',             weight: 1.90, mag7: true  },
+  { symbol: 'BRK.B', name: 'Berkshire Hathaway',     weight: 1.70, mag7: false },
+  { symbol: 'AVGO',  name: 'Broadcom Inc.',          weight: 1.60, mag7: false },
+  { symbol: 'JPM',   name: 'JPMorgan Chase',         weight: 1.30, mag7: false },
+  { symbol: 'LLY',   name: 'Eli Lilly',             weight: 1.20, mag7: false },
+  { symbol: 'UNH',   name: 'UnitedHealth Group',     weight: 1.10, mag7: false },
+  { symbol: 'V',     name: 'Visa Inc.',              weight: 1.00, mag7: false },
+  { symbol: 'XOM',   name: 'Exxon Mobil',           weight: 0.90, mag7: false },
+  { symbol: 'COST',  name: 'Costco Wholesale',       weight: 0.85, mag7: false },
+  { symbol: 'WMT',   name: 'Walmart Inc.',           weight: 0.82, mag7: false },
+  { symbol: 'MA',    name: 'Mastercard Inc.',        weight: 0.78, mag7: false },
+  { symbol: 'NFLX',  name: 'Netflix Inc.',           weight: 0.75, mag7: false },
+  { symbol: 'PG',    name: 'Procter & Gamble',       weight: 0.72, mag7: false },
+  { symbol: 'JNJ',   name: 'Johnson & Johnson',      weight: 0.68, mag7: false },
+  { symbol: 'HD',    name: 'Home Depot',             weight: 0.65, mag7: false },
+  { symbol: 'ORCL',  name: 'Oracle Corp.',           weight: 0.63, mag7: false },
+  { symbol: 'BAC',   name: 'Bank of America',        weight: 0.60, mag7: false },
+  { symbol: 'CRM',   name: 'Salesforce Inc.',        weight: 0.58, mag7: false },
+  { symbol: 'AMD',   name: 'Advanced Micro Devices', weight: 0.55, mag7: false },
+  { symbol: 'ABBV',  name: 'AbbVie Inc.',            weight: 0.53, mag7: false },
+  { symbol: 'KO',    name: 'Coca-Cola Co.',          weight: 0.50, mag7: false },
+  { symbol: 'CVX',   name: 'Chevron Corp.',          weight: 0.48, mag7: false },
+  { symbol: 'MRK',   name: 'Merck & Co.',           weight: 0.46, mag7: false },
+  { symbol: 'CSCO',  name: 'Cisco Systems',          weight: 0.44, mag7: false },
+  { symbol: 'PEP',   name: 'PepsiCo Inc.',           weight: 0.42, mag7: false },
+  { symbol: 'ACN',   name: 'Accenture plc',          weight: 0.40, mag7: false },
+  { symbol: 'TMO',   name: 'Thermo Fisher Scientific',weight: 0.38, mag7: false },
+  { symbol: 'MCD',   name: "McDonald's Corp.",       weight: 0.37, mag7: false },
+  { symbol: 'IBM',   name: 'IBM Corp.',              weight: 0.35, mag7: false },
+  { symbol: 'ADBE',  name: 'Adobe Inc.',             weight: 0.34, mag7: false },
+  { symbol: 'TXN',   name: 'Texas Instruments',      weight: 0.33, mag7: false },
+  { symbol: 'AMGN',  name: 'Amgen Inc.',             weight: 0.32, mag7: false },
+  { symbol: 'INTU',  name: 'Intuit Inc.',            weight: 0.31, mag7: false },
+  { symbol: 'NOW',   name: 'ServiceNow Inc.',        weight: 0.30, mag7: false },
+  { symbol: 'ISRG',  name: 'Intuitive Surgical',     weight: 0.29, mag7: false },
+  { symbol: 'PM',    name: 'Philip Morris Intl.',    weight: 0.28, mag7: false },
+  { symbol: 'CAT',   name: 'Caterpillar Inc.',       weight: 0.27, mag7: false },
+  { symbol: 'GE',    name: 'GE Aerospace',           weight: 0.26, mag7: false },
+  { symbol: 'RTX',   name: 'RTX Corp.',              weight: 0.25, mag7: false },
+  { symbol: 'SPGI',  name: 'S&P Global Inc.',        weight: 0.24, mag7: false },
+  { symbol: 'BKNG',  name: 'Booking Holdings',       weight: 0.23, mag7: false },
+  { symbol: 'MS',    name: 'Morgan Stanley',         weight: 0.22, mag7: false },
+  { symbol: 'GS',    name: 'Goldman Sachs',          weight: 0.21, mag7: false },
 ];
+// Chart shows top 15; table shows all 50
+const SP500_CHART_HOLDINGS = SP500_HOLDINGS.slice(0, 15);
 const OTHER_WEIGHT = +(100 - SP500_HOLDINGS.reduce((s, h) => s + h.weight, 0)).toFixed(1);
 
 const CHART_COLORS = ['#4f8ef7','#a78bfa','#34d399','#f59e0b','#f472b6','#60a5fa','#fb923c','#94a3b8'];
@@ -477,20 +522,27 @@ function renderPriceChart() {
 
 // ─── S&P 500 Tab ──────────────────────────────────────────────────────────────
 async function loadSP500Tab() {
-  // Fetch live prices for SP500 holdings (skip if already fetched)
+  // Fetch live prices for all 50 holdings in batches to avoid rate limits
   const toFetch = SP500_HOLDINGS.filter(h => !sp500LiveData[h.symbol]);
-  const results = await Promise.allSettled(toFetch.map(h => fetchQuote(h.symbol)));
-  results.forEach((res, i) => {
-    if (res.status === 'fulfilled') sp500LiveData[toFetch[i].symbol] = res.value;
-  });
+  const BATCH = 10;
+  for (let i = 0; i < toFetch.length; i += BATCH) {
+    const batch = toFetch.slice(i, i + BATCH);
+    const results = await Promise.allSettled(batch.map(h => fetchQuote(h.symbol)));
+    results.forEach((res, j) => {
+      if (res.status === 'fulfilled') sp500LiveData[batch[j].symbol] = res.value;
+    });
+    renderSP500Table(); // update table progressively as data arrives
+    if (i + BATCH < toFetch.length) await new Promise(r => setTimeout(r, 300));
+  }
   renderSP500Chart();
   renderSP500Table();
 }
 
 function renderSP500Chart() {
-  const labels = [...SP500_HOLDINGS.map(h => h.symbol), 'Other'];
-  const weights = [...SP500_HOLDINGS.map(h => h.weight), OTHER_WEIGHT];
-  const colors = [...SP500_COLORS.slice(0, SP500_HOLDINGS.length), '#e5e7eb'];
+  const chartOther = +(100 - SP500_CHART_HOLDINGS.reduce((s, h) => s + h.weight, 0)).toFixed(1);
+  const labels = [...SP500_CHART_HOLDINGS.map(h => h.symbol), 'Other'];
+  const weights = [...SP500_CHART_HOLDINGS.map(h => h.weight), chartOther];
+  const colors = [...SP500_COLORS.slice(0, SP500_CHART_HOLDINGS.length), '#e5e7eb'];
 
   if (sp500Chart) sp500Chart.destroy();
   sp500Chart = new Chart(document.getElementById('sp500-donut'), {
@@ -507,39 +559,49 @@ function renderSP500Chart() {
   });
 }
 
-function renderSP500Table() {
+function renderSP500Table(filter = '') {
   const tbody = document.getElementById('sp500-tbody');
-  const maxW = Math.max(...SP500_HOLDINGS.map(h => h.weight));
+  const maxW = SP500_HOLDINGS[0].weight;
+  const q = filter.toLowerCase();
+  const filtered = SP500_HOLDINGS.filter(h =>
+    !q || h.symbol.toLowerCase().includes(q) || h.name.toLowerCase().includes(q)
+  );
 
-  const rows = SP500_HOLDINGS.map((h, i) => {
-    const q = sp500LiveData[h.symbol];
-    const pct = q?.dp ?? null;
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="color:#9ca3af;text-align:center;padding:20px;">No results for "${filter}"</td></tr>`;
+    return;
+  }
+
+  const rows = filtered.map((h, idx) => {
+    const rank = SP500_HOLDINGS.indexOf(h) + 1;
+    const liveQ = sp500LiveData[h.symbol];
+    const pct = liveQ?.dp ?? null;
     const cls = pct == null ? '' : pct >= 0 ? 'green' : 'red';
     const arrow = pct == null ? '' : pct >= 0 ? '▲' : '▼';
-    const barW = Math.round((h.weight / maxW) * 120);
-    const color = SP500_COLORS[i] || '#94a3b8';
+    const barW = Math.round((h.weight / maxW) * 90);
+    const color = SP500_COLORS[rank - 1] || '#94a3b8';
     return `<tr>
+      <td style="color:#9ca3af;font-size:12px;">${rank}</td>
       <td><strong>${h.symbol}</strong></td>
       <td>${h.name} ${h.mag7 ? '<span class="mag7-badge">Mag 7</span>' : ''}</td>
       <td class="right">
         <div class="weight-bar-cell" style="justify-content:flex-end">
-          <span>${h.weight}%</span>
+          <span style="font-size:12px">${h.weight}%</span>
           <div class="weight-bar" style="width:${barW}px;background:${color}"></div>
         </div>
       </td>
-      <td class="right">${q ? fmtPrice(q.c) : '<span style="color:#9ca3af">--</span>'}</td>
+      <td class="right">${liveQ ? fmtPrice(liveQ.c) : '<span style="color:#9ca3af">--</span>'}</td>
       <td class="right ${cls}">${pct != null ? arrow + ' ' + Math.abs(pct).toFixed(2) + '%' : '--'}</td>
       <td><span class="dot" style="background:${color}"></span></td>
     </tr>`;
   });
 
-  rows.push(`<tr style="background:#f9fafb;font-style:italic">
-    <td colspan="2" style="color:#6b7280">All other S&P 500 holdings (~485 stocks)</td>
-    <td class="right" style="color:#6b7280">${OTHER_WEIGHT}%</td>
-    <td colspan="3"></td>
-  </tr>`);
-
   tbody.innerHTML = rows.join('');
+}
+
+function filterSP500Table() {
+  const q = document.getElementById('sp500-search')?.value || '';
+  renderSP500Table(q);
 }
 
 // ─── AI Sidebar ───────────────────────────────────────────────────────────────
